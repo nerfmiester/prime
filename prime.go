@@ -3,9 +3,11 @@ package main
 import (
 	"encoding/json"
 	"errors"
+	"flag"
 	"fmt"
 	"math"
 	"net/http"
+	"os"
 	"strconv"
 	"sync"
 
@@ -15,9 +17,12 @@ import (
 var (
 	x, y, n, intPrime int
 	z                 string
+	algorithm         string
 	primeSlice        = []int{}
 	wg                = &sync.WaitGroup{}
 	keeps             = make([]int, 5000000)
+	usageBool         bool
+	mapToPrimes       = map[int]Primers{}
 )
 
 // Primers is a list of Primes
@@ -28,6 +33,8 @@ type Primers struct {
 
 func init() {
 	fmt.Println("-->>Init<<--")
+	flag.StringVar(&algorithm, "algorithm", "a", "Which algorithm to Use Spanish language.\n\n\t\t a = \"aitkin\"")
+	flag.BoolVar(&usageBool, "u", false, "Show the usage parameters.") //#3
 }
 
 // Filter Copy the values from channel 'in' to channel 'out',
@@ -41,12 +48,20 @@ func Filter(in <-chan int, out chan<- int, prime int) {
 	}
 }
 
+const sizeToCache = 5000000
+
 func main() {
+
+	if usageBool {
+		usage()
+		os.Exit(0)
+	}
+
 	r := mux.NewRouter()
-	r.HandleFunc("/prime/{prime}", PrimeHandler)
+	r.HandleFunc("/primes/{prime}", PrimeHandler)
 	fmt.Println("Allright geezer")
 	// Preload array with up to 5 million in background
-	go workerAitkin(5000000, true)
+	go loadCache(sizeToCache)
 	http.ListenAndServe(":8081", r)
 
 }
@@ -59,18 +74,10 @@ func PrimeHandler(w http.ResponseWriter, r *http.Request) {
 	if intPrime, err = strconv.Atoi(prime); err != nil {
 		fmt.Println(err)
 	}
-	if intPrime < 5000000 {
-		primes := make([]int, 0, 1270606)
-		val.Initial = strconv.Itoa(intPrime)
-		for i := 0; i <= (len(keeps) - 1); i++ {
-			if keeps[i] <= intPrime {
-				primes = append(primes, keeps[i])
-			} else {
-				break
-			}
-		}
+	if intPrime <= sizeToCache {
+		val = mapToPrimes[intPrime]
 		fmt.Println("In cache")
-		val.Primes = primes
+		fmt.Println("Length of mapToPrimes = ", len(mapToPrimes))
 	} else {
 		val = workerAitkin(intPrime, false)
 	}
@@ -85,12 +92,19 @@ func PrimeHandler(w http.ResponseWriter, r *http.Request) {
 
 }
 
+func loadCache(size int) {
+	for i := 1; i <= size; i++ {
+		//fmt.Println("i=", i)
+		mapToPrimes[i] = workerAitkin(i, false)
+	}
+}
+
 func workerAitkin(toPrime int, save bool) Primers {
 
 	var x, y, n int
 	nsqrt := math.Sqrt(float64(toPrime))
 
-	isPrime := make([]bool, toPrime)
+	isPrime := make([]bool, (sizeToCache + 1))
 	for x = 1; float64(x) <= nsqrt; x++ {
 		for y = 1; float64(y) <= nsqrt; y++ {
 			n = 4*(x*x) + y*y
@@ -115,7 +129,7 @@ func workerAitkin(toPrime int, save bool) Primers {
 			}
 		}
 	}
-
+	//fmt.Println("len of isPrime = ", len(isPrime))
 	isPrime[2] = true
 	isPrime[3] = true
 
@@ -143,5 +157,11 @@ func workerAitkin(toPrime int, save bool) Primers {
 	primers.Primes = primes
 
 	return primers
+
+}
+
+func usage() {
+
+	fmt.Printf("\n\tUsage\n\t=====\n\ta webservice to return a list of prime numbers from a value passed in as a parameter in the url\n\n\tFor example  http://your.host.com/primes/15 will return a JSON document  \n\tTodo : Add functionality to select output method\t")
 
 }
