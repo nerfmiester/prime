@@ -11,7 +11,6 @@ import (
 	"net/http"
 	"os"
 	"strconv"
-	"sync"
 
 	"github.com/caleblloyd/primesieve"
 	"github.com/gorilla/mux"
@@ -23,8 +22,6 @@ var (
 	algorithm         string
 	writer            io.Writer
 	primeSlice        = []uint64{}
-	wg                = &sync.WaitGroup{}
-	keeps             = make([]uint64, 5000000)
 	usageBool         bool
 	ok                bool
 	usetoml           bool
@@ -60,7 +57,7 @@ func Filter(in <-chan uint64, out chan<- uint64, prime uint64) {
 	}
 }
 
-const sizeToCache = 5000000
+const sizeToCache = 50000000
 
 func main() {
 
@@ -211,7 +208,7 @@ func workerAitkin(toPrime uint64) Primers {
 func usage() {
 
 	fmt.Printf("\n\tUsage\n\t=====\n\ta Web Service to return a list of prime numbers from a value passed in as a parameter in the url\n\n\tFor example  http://your.host.com/primes/segmented/15 will return a JSON document list the primes to 15 -> {\"initial\":\"15\",\"primes\":[2,3,5,7,11,13]} ")
-	fmt.Printf("\n\tYou can choose the mthod of calculating the Prime numbers ; either the \"Sieve of Aitkin\" or the \"Sieve of Eratosthenes (Segmented)\t")
+	fmt.Printf("\n\tYou can choose the method of calculating the Prime numbers ; either the \"Sieve of Aitkin\" or the \"Sieve of Eratosthenes (Segmented)\t")
 	fmt.Printf("\n\tTo Choose Aitkin the url format is http://your.host.com/primes/aitkin/15 ")
 	fmt.Printf("\n\tTo Choose Eratosthenes the url format is http://your.host.com/primes/segmented/15 ")
 	fmt.Printf("\n\tThe output Can also be represented as XML; ")
