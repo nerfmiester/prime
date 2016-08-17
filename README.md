@@ -29,13 +29,26 @@
       GOOS="windows" go build prime.go
 
 
-      Installation
+      Execution
       ============
 
       Either if you have go installed
 
       go run prime.go
 
-      Or
+      Or execute binary
+      _________________________
+
+      linux
+      Check permissions
+      If the execution bit is not set
+
+      chmod +x linuxprime
+       
+      ./linuxprime
+      _________________________
+
+      Mac
 
       ./prime
+      _________________________
