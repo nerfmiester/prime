@@ -29,6 +29,10 @@
       GOOS="windows" go build prime.go
 
 
+      To run the tests
+
+      go tests -v -cover
+
       Execution
       ============
 
@@ -44,7 +48,7 @@
       If the execution bit is not set
 
       chmod +x linuxprime
-       
+
       ./linuxprime
       _________________________
 
