@@ -215,6 +215,6 @@ func usage() {
 	fmt.Printf("\n\tTo Choose Aitkin the url format is http://your.host.com/primes/aitkin/15 ")
 	fmt.Printf("\n\tTo Choose Eratosthenes the url format is http://your.host.com/primes/segmented/15 ")
 	fmt.Printf("\n\tThe output Can also be represented as XML; ")
-	fmt.Printf("\n\tThe URL for XML will be http://your.host.com/primes/xml/aitkin/15")
+	fmt.Printf("\n\tThe URL for XML will be http://your.host.com/primes/xml/aitkin/15\n\n")
 
 }
