@@ -2,6 +2,7 @@ package main
 
 import (
 	"encoding/json"
+	"encoding/xml"
 	"errors"
 	"flag"
 	"fmt"
@@ -34,6 +35,13 @@ var (
 type Primers struct {
 	Initial string   `json:"initial"`
 	Primes  []uint64 `json:"primes"`
+}
+
+// Xprimes is a list of Primes
+type Xprimes struct {
+	XMLName xml.Name `xml:"primeNumbers"`
+	Initial string   `xml:"initial"`
+	Primes  []uint64 `xml:"primes"`
 }
 
 func init() {
@@ -105,6 +113,7 @@ func PrimeHandler(w http.ResponseWriter, r *http.Request) {
 // PrimeXMLHandler = the function will Orchistrate prime number creation and return XML notation.
 func PrimeXMLHandler(w http.ResponseWriter, r *http.Request) {
 	val := Primers{}
+	top := Xprimes{}
 	err := errors.New("")
 	prime := mux.Vars(r)["prime"]
 	if intPrime, err = strconv.ParseUint(prime, 10, 64); err != nil {
@@ -118,8 +127,16 @@ func PrimeXMLHandler(w http.ResponseWriter, r *http.Request) {
 	} else {
 		val = workerAitkin(intPrime)
 	}
-	fmt.Println("Implement XML", val)
-	// TODO : Implement XML code here
+	top.Initial = prime
+	top.Primes = val.Primes
+
+	output, err := xml.Marshal(&top)
+	if err != nil {
+		fmt.Println("Error marshling to xml", err)
+		return
+	}
+
+	w.Write([]byte(xml.Header + string(output)))
 
 }
 
@@ -193,6 +210,11 @@ func workerAitkin(toPrime uint64) Primers {
 
 func usage() {
 
-	fmt.Printf("\n\tUsage\n\t=====\n\ta webservice to return a list of prime numbers from a value passed in as a parameter in the url\n\n\tFor example  http://your.host.com/primes/15 will return a JSON document  \n\tTodo : Add functionality to select output method\t")
+	fmt.Printf("\n\tUsage\n\t=====\n\ta Web Service to return a list of prime numbers from a value passed in as a parameter in the url\n\n\tFor example  http://your.host.com/primes/segmented/15 will return a JSON document list the primes to 15 -> {\"initial\":\"15\",\"primes\":[2,3,5,7,11,13]} ")
+	fmt.Printf("\n\tYou can choose the mthod of calculating the Prime numbers ; either the \"Sieve of Aitkin\" or the \"Sieve of Eratosthenes (Segmented)\t")
+	fmt.Printf("\n\tTo Choose Aitkin the url format is http://your.host.com/primes/aitkin/15 ")
+	fmt.Printf("\n\tTo Choose Eratosthenes the url format is http://your.host.com/primes/segmented/15 ")
+	fmt.Printf("\n\tThe output Can also be represented as XML; ")
+	fmt.Printf("\n\tThe URL for XML will be http://your.host.com/primes/xml/aitkin/15")
 
 }
