@@ -5,41 +5,45 @@ import (
 	"errors"
 	"flag"
 	"fmt"
+	"io"
 	"math"
 	"net/http"
 	"os"
 	"strconv"
 	"sync"
 
+	"github.com/caleblloyd/primesieve"
 	"github.com/gorilla/mux"
 )
 
 var (
-	x, y, n, intPrime int
+	x, y, n, intPrime uint64
 	z                 string
 	algorithm         string
-	primeSlice        = []int{}
+	writer            io.Writer
+	primeSlice        = []uint64{}
 	wg                = &sync.WaitGroup{}
-	keeps             = make([]int, 5000000)
+	keeps             = make([]uint64, 5000000)
 	usageBool         bool
-	mapToPrimes       = map[int]Primers{}
+	ok                bool
+	usetoml           bool
+	mapToPrimes       = map[uint64]Primers{}
 )
 
 // Primers is a list of Primes
 type Primers struct {
-	Initial string `json:"initial"`
-	Primes  []int  `json:"primes"`
+	Initial string   `json:"initial"`
+	Primes  []uint64 `json:"primes"`
 }
 
 func init() {
-	fmt.Println("-->>Init<<--")
-	flag.StringVar(&algorithm, "algorithm", "a", "Which algorithm to Use Spanish language.\n\n\t\t a = \"aitkin\"")
+
 	flag.BoolVar(&usageBool, "u", false, "Show the usage parameters.") //#3
 }
 
 // Filter Copy the values from channel 'in' to channel 'out',
 // removing those divisible by 'prime'.
-func Filter(in <-chan int, out chan<- int, prime int) {
+func Filter(in <-chan uint64, out chan<- uint64, prime uint64) {
 	for {
 		i := <-in // Receive value from 'in'.
 		if i%prime != 0 {
@@ -52,56 +56,92 @@ const sizeToCache = 5000000
 
 func main() {
 
+	flag.Parse()
+
 	if usageBool {
 		usage()
 		os.Exit(0)
 	}
-
+	fmt.Println("-->>Server Starting.....<<--")
 	r := mux.NewRouter()
-	r.HandleFunc("/primes/{prime}", PrimeHandler)
-	fmt.Println("Allright geezer")
+	r.HandleFunc("/primes/{algorithm}/{prime}", PrimeHandler)
+	r.HandleFunc("/primes/xml/{algorithm}/{prime}", PrimeXMLHandler)
 	// Preload array with up to 5 million in background
 	go loadCache(sizeToCache)
 	http.ListenAndServe(":8081", r)
 
 }
 
-// PrimeHandler = the function will Orchistrate prime number creation.
+// PrimeHandler = the function will Orchistrate prime number creation and return JSON.
 func PrimeHandler(w http.ResponseWriter, r *http.Request) {
 	val := Primers{}
 	err := errors.New("")
 	prime := mux.Vars(r)["prime"]
-	if intPrime, err = strconv.Atoi(prime); err != nil {
+	algorithm := mux.Vars(r)["algorithm"]
+	if intPrime, err = strconv.ParseUint(prime, 10, 64); err != nil {
 		fmt.Println(err)
 	}
 	if intPrime <= sizeToCache {
-		val = mapToPrimes[intPrime]
-		fmt.Println("In cache")
-		fmt.Println("Length of mapToPrimes = ", len(mapToPrimes))
+		if val, ok = mapToPrimes[intPrime]; ok {
+		} else {
+			if algorithm == "segmented" {
+				val = workerSegmented(intPrime)
+			} else {
+				val = workerAitkin(intPrime)
+			}
+		}
 	} else {
-		val = workerAitkin(intPrime, false)
+		val = workerAitkin(intPrime)
 	}
 	j, err := json.Marshal(val)
+
 	if err != nil {
 		fmt.Println(err)
 	}
-
-	//fmt.Printf("-->>Prime = %s <<--", j)
-
 	w.Write([]byte(j))
 
 }
 
-func loadCache(size int) {
-	for i := 1; i <= size; i++ {
-		//fmt.Println("i=", i)
-		mapToPrimes[i] = workerAitkin(i, false)
+// PrimeXMLHandler = the function will Orchistrate prime number creation and return XML notation.
+func PrimeXMLHandler(w http.ResponseWriter, r *http.Request) {
+	val := Primers{}
+	err := errors.New("")
+	prime := mux.Vars(r)["prime"]
+	if intPrime, err = strconv.ParseUint(prime, 10, 64); err != nil {
+		fmt.Println(err)
+	}
+	if intPrime <= sizeToCache {
+		if val, ok = mapToPrimes[intPrime]; ok {
+		} else {
+			val = workerAitkin(intPrime)
+		}
+	} else {
+		val = workerAitkin(intPrime)
+	}
+	fmt.Println("Implement XML", val)
+	// TODO : Implement XML code here
+
+}
+
+func loadCache(size uint64) {
+	for i := uint64(1); i <= size; i++ {
+		mapToPrimes[i] = workerAitkin(i)
 	}
 }
 
-func workerAitkin(toPrime int, save bool) Primers {
+func workerSegmented(toPrime uint64) Primers {
+	primers := Primers{}
+	primers.Initial = strconv.FormatUint(toPrime, 10)
+	primers.Primes = primesieve.ListMax(uint64(toPrime))
+	return primers
+}
 
-	var x, y, n int
+func workerAitkin(toPrime uint64) Primers {
+
+	// Many thanks to gofool for this implementation
+	// https://raw.githubusercontent.com/agis-/gofool/master/atkin.go
+
+	var x, y, n uint64
 	nsqrt := math.Sqrt(float64(toPrime))
 
 	isPrime := make([]bool, (sizeToCache + 1))
@@ -133,8 +173,8 @@ func workerAitkin(toPrime int, save bool) Primers {
 	isPrime[2] = true
 	isPrime[3] = true
 
-	primes := make([]int, 0, 1270606)
-	for x = 0; x < len(isPrime)-1; x++ {
+	primes := make([]uint64, 0, 1270606)
+	for x = 0; x < uint64(len(isPrime))-1; x++ {
 		if isPrime[x] {
 			primes = append(primes, x)
 		}
@@ -143,17 +183,8 @@ func workerAitkin(toPrime int, save bool) Primers {
 	// primes is now a slice that contains all the
 	// primes numbers up to isPrime
 
-	// if in save mode then keep output
-
-	if save {
-
-		keeps = primes
-		return Primers{}
-
-	}
-
 	primers := Primers{}
-	primers.Initial = strconv.Itoa(toPrime)
+	primers.Initial = strconv.FormatUint(toPrime, 10)
 	primers.Primes = primes
 
 	return primers
